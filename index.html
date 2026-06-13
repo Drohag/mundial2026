@@ -184,12 +184,7 @@
         <div class="groups-grid" id="groupsGrid"></div>
         <div class="section-title">Faza pucharowa — twoje typy</div>
         <div id="playoffSection"></div>
-        <div class="final-pick">
-          <h3>🏆 MISTRZ ŚWIATA</h3>
-          <select class="team-select" id="championPick">
-            <option value="">— wybierz mistrza —</option>
-          </select>
-        </div>
+  
         <div class="save-bar">
           <span class="save-status" id="saveStatus"></span>
           <button class="btn btn-gold" id="submitBtn" onclick="confirmSubmit()">🔒 Zatwierdź na stałe</button>
@@ -402,9 +397,9 @@ function renderPicksTab() {
     document.getElementById('lockedTime').textContent =
       'Zagłosowałeś: '+new Date(locked).toLocaleString('pl');
     // Show picks as read-only
-    renderGroupPicks(true); renderPlayoffPicks(true); renderChampionPick(true);
+    renderGroupPicks(true); renderPlayoffPicks(true); 
   } else {
-    renderGroupPicks(false); renderPlayoffPicks(false); renderChampionPick(false);
+    renderGroupPicks(false); renderPlayoffPicks(false); 
   }
 }
 
@@ -463,18 +458,10 @@ function pickPlayoff(rid,idx,team) {
   myPicks.playoff[rid][idx]=team;
 }
 
-function renderChampionPick(readonly=false) {
-  const sel=document.getElementById('championPick'); if(!sel)return;
-  sel.disabled=readonly;
-  sel.innerHTML='<option value="">— wybierz mistrza —</option>'+
-    ALL_TEAMS.map(t=>`<option value="${t}" ${t===myPicks.champion?'selected':''}>${t}</option>`).join('');
-}
+
 
 // ===== SUBMIT (raz na zawsze) =====
 async function confirmSubmit() {
-  myPicks.champion = document.getElementById('championPick').value;
-  if(!myPicks.champion) { alert('Wybierz mistrza świata!'); return; }
-
   const ok = confirm(
     `⚠️ UWAGA!\n\nZatwierdzasz typy jako: ${me}\n\nPo zatwierdzeniu NIE będziesz mógł ich zmienić.\n\nCzy na pewno chcesz zatwierdzić?`
   );
@@ -516,7 +503,6 @@ function calcPoints(picks) {
     const pp=(picks.playoff&&picks.playoff[r.id])||[],rr=(res.playoff&&res.playoff[r.id])||[];
     pp.forEach(t=>{if(t&&rr.includes(t))p+=r.pts;});
   });
-  if(picks.champion&&picks.champion===res.champion)c=12;
   return{g,p,c,total:g+p+c};
 }
 
@@ -531,7 +517,7 @@ async function loadRanking() {
       return{name,locked,...calcPoints(picks)};
     }).sort((a,b)=>b.total-a.total);
     document.getElementById('rankingContent').innerHTML=`<div class="rank-table"><table>
-      <thead><tr><th>#</th><th>Uczestnik</th><th>Status</th><th>Grupy</th><th>Playoff</th><th>🏆</th><th>SUMA</th></tr></thead>
+      <thead><tr><th>#</th><th>Uczestnik</th><th>Status</th><th>Grupy</th><th>Playoff</th><th>SUMA</th></tr></thead>
       <tbody>${rows.map((r,i)=>{
         const pos=i+1,pc=pos===1?'gold':pos===2?'silver':pos===3?'bronze':'',medal=pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':'';
         const hi=r.name===me?' style="background:rgba(26,107,60,0.15)"':'';
@@ -539,7 +525,7 @@ async function loadRanking() {
         return `<tr${hi}><td><span class="rank-pos ${pc}">${medal||pos}</span></td>
           <td><strong>${r.name}</strong>${r.name===me?' <span style="color:var(--gold);font-size:10px">(Ty)</span>':''}</td>
           <td>${status}</td>
-          <td>${r.g}</td><td>${r.p}</td><td>${r.c}</td><td><span class="rank-pts">${r.total}</span></td></tr>`;
+          <td>${r.g}</td><td>${r.p}</td><td><span class="rank-pts">${r.total}</span></td></tr>`;
       }).join('')}</tbody></table></div>`;
   } catch(e) {
     sync('err',e.message);
@@ -571,7 +557,7 @@ function exportPDF() {
   <div class="stamp">Wygenerowano: ${now}</div>`;
 
   // Ranking
-  html+=`<h2>🏆 Ranking</h2><table><tr><th>#</th><th>Uczestnik</th><th>Status</th><th>Grupy</th><th>Playoff</th><th>Champion</th><th>SUMA</th></tr>`;
+  html+=`<h2>🏆 Ranking</h2><table><tr><th>#</th><th>Uczestnik</th><th>Status</th><th>Grupy</th><th>Playoff</th><th>SUMA</th></tr>`;
   const rows=db.players.map(name=>{
     const picks=db.picks[name]||{groups:{},playoff:{},champion:''};
     return{name,locked:db.locked[name],...calcPoints(picks)};
@@ -579,7 +565,7 @@ function exportPDF() {
   rows.forEach((r,i)=>{
     html+=`<tr><td>${i+1}</td><td><strong>${r.name}</strong></td>
       <td class="${r.locked?'locked':'unlocked'}">${r.locked?'✅ zagłosował':'⏳ czeka'}</td>
-      <td>${r.g}</td><td>${r.p}</td><td>${r.c}</td><td><strong>${r.total}</strong></td></tr>`;
+      <td>${r.g}</td><td>${r.p}</td><td><strong>${r.total}</strong></td></tr>`;
   });
   html+=`</table>`;
 
@@ -605,7 +591,7 @@ function exportPDF() {
       html+=`<tr><td>${r.label}</td><td>${teams}</td></tr>`;
     });
     html+=`</table>`;
-    html+=`<p><strong>🏆 Mistrz świata:</strong> ${picks.champion||'— nie wybrano —'}</p>`;
+
   });
 
   // Logi
@@ -715,10 +701,7 @@ function renderAdminPlayoff(){
     });
     return `<div style="margin-bottom:14px"><div style="font-weight:600;color:var(--gold);margin-bottom:6px">${r.label}</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${slots.join('')}</div></div>`;
-  }).join('')+`<div style="margin-top:16px"><div style="font-weight:600;color:var(--gold);margin-bottom:6px">🏆 Mistrz świata</div>
-    <select class="team-select" style="max-width:260px" onchange="adminResults.champion=this.value">
-      <option value="">—</option>${ALL_TEAMS.map(t=>`<option value="${t}" ${adminResults.champion===t?'selected':''}>${t}</option>`).join('')}
-    </select></div>`;
+  }).join('');
 }
 function setAP(rid,idx,val){if(!adminResults.playoff)adminResults.playoff={};if(!adminResults.playoff[rid])adminResults.playoff[rid]=[];adminResults.playoff[rid][idx]=val;}
 
