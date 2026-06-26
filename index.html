@@ -721,22 +721,49 @@ function fdName(n){return FD_MAP[n]||n;}
 
 async function fetchLiveStandings(){
   try{
-    const r=await fetch(FD_BASE+'/competitions/WC/standings?season=2026',{headers:{'X-Auth-Token':FD_KEY}});
+    // Darmowe dane z openfootball - bez klucza API, zawiera wyniki meczow
+    const r=await fetch('https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json');
     if(!r.ok)throw new Error('HTTP '+r.status);
     const data=await r.json();
-    if(!data.standings||!data.standings.length)return null;
-    const groups={};
-    data.standings.forEach(g=>{
-      const m=g.group&&g.group.match(/([A-L])$/);
-      if(!m)return;
-      const l=m[1];
-      groups[l]={};
-      if(g.table[0])groups[l]['1st']=fdName(g.table[0].team.name);
-      if(g.table[1])groups[l]['2nd']=fdName(g.table[1].team.name);
-      if(g.table[2])groups[l]['3rd']=fdName(g.table[2].team.name);
+    if(!data||!data.matches)return null;
+
+    // Obliczamy tabele grupowe na podstawie wynikow meczow
+    const stats={}; // stats[group][team] = {pts,gf,ga}
+
+    data.matches.forEach(m=>{
+      if(!m.score||!m.score.ft)return; // brak wyniku = mecz nierozegrany
+      const g=m.group; // "Group A"
+      const letter=g&&g.match(/([A-L])$/i);
+      if(!letter)return;
+      const grp=letter[1].toUpperCase();
+      if(!stats[grp])stats[grp]={};
+
+      const t1=fdName(m.team1), t2=fdName(m.team2);
+      const s1=m.score.ft[0], s2=m.score.ft[1];
+
+      if(!stats[grp][t1])stats[grp][t1]={pts:0,gf:0,ga:0};
+      if(!stats[grp][t2])stats[grp][t2]={pts:0,gf:0,ga:0};
+
+      stats[grp][t1].gf+=s1; stats[grp][t1].ga+=s2;
+      stats[grp][t2].gf+=s2; stats[grp][t2].ga+=s1;
+
+      if(s1>s2){ stats[grp][t1].pts+=3; }
+      else if(s1<s2){ stats[grp][t2].pts+=3; }
+      else{ stats[grp][t1].pts+=1; stats[grp][t2].pts+=1; }
     });
-    return groups;
-  }catch(e){console.warn('FD API:',e.message);return null;}
+
+    // Sortujemy i budujemy wyniki
+    const groups={};
+    Object.entries(stats).forEach(([grp,teams])=>{
+      const sorted=Object.entries(teams)
+        .sort((a,b)=>b[1].pts-a[1].pts||(b[1].gf-b[1].ga)-(a[1].gf-a[1].ga)||b[1].gf-a[1].gf);
+      groups[grp]={};
+      if(sorted[0])groups[grp]['1st']=sorted[0][0];
+      if(sorted[1])groups[grp]['2nd']=sorted[1][0];
+      if(sorted[2])groups[grp]['3rd']=sorted[2][0];
+    });
+    return Object.keys(groups).length?groups:null;
+  }catch(e){console.warn('openfootball API:',e.message);return null;}
 }
 
 async function fetchAndSaveLiveStandings(){
