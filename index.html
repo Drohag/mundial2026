@@ -462,17 +462,45 @@ async function renderAdminPanel(){
   ac.innerHTML='<option value="">-</option>'+ALL_TEAMS.map(t=>'<option value="'+t+'"'+(adminResults.champion===t?' selected':'')+'>'+t+'</option>').join('');
 }
 function renderAdminPlayerList(){
-  const el=document.getElementById('adminPlayerList');el.innerHTML='';
-  adminPlayers.forEach((p,i)=>{
-    const lG=db.lockedGroups&&db.lockedGroups[p],lP=db.lockedPlayoff&&db.lockedPlayoff[p];
-    const row=document.createElement('div');row.className='player-row';row.style.marginBottom='6px';
-    row.innerHTML='<input value="'+p+'" oninput="adminPlayers['+i+']=this.value" placeholder="Imie"/>'+
-      '<span style="font-size:10px;white-space:nowrap;color:'+(lP?'#4caf50':lG?'var(--orange)':'var(--muted)')+';min-width:80px">'+(lP?'playoff OK':lG?'grupy OK':'oczekuje')+'</span>'+
-      (lP?'<button class="btn btn-red btn-sm" onclick="adminUnlock(''+p+'')">Odblokuj playoff</button>':'')+
-      '<button class="btn-icon" onclick="adminPlayers.splice('+i+',1);renderAdminPlayerList()">x</button>';
+  var el=document.getElementById('adminPlayerList');
+  el.innerHTML='';
+  adminPlayers.forEach(function(p,i){
+    var lG=db.lockedGroups&&db.lockedGroups[p];
+    var lP=db.lockedPlayoff&&db.lockedPlayoff[p];
+    var row=document.createElement('div');
+    row.className='player-row';
+    row.style.marginBottom='6px';
+
+    var inp=document.createElement('input');
+    inp.value=p;
+    inp.placeholder='Imie';
+    inp.addEventListener('input',function(){adminPlayers[i]=this.value;});
+
+    var sp=document.createElement('span');
+    sp.style.cssText='font-size:10px;white-space:nowrap;min-width:80px;color:'+(lP?'#4caf50':lG?'var(--orange)':'var(--muted)');
+    sp.textContent=lP?'playoff OK':lG?'grupy OK':'oczekuje';
+
+    var delBtn=document.createElement('button');
+    delBtn.className='btn-icon';
+    delBtn.textContent='x';
+    delBtn.addEventListener('click',function(){adminPlayers.splice(i,1);renderAdminPlayerList();});
+
+    row.appendChild(inp);
+    row.appendChild(sp);
+
+    if(lP){
+      var unlBtn=document.createElement('button');
+      unlBtn.className='btn btn-red btn-sm';
+      unlBtn.textContent='Odblokuj playoff';
+      unlBtn.addEventListener('click',function(){adminUnlock(p);});
+      row.appendChild(unlBtn);
+    }
+
+    row.appendChild(delBtn);
     el.appendChild(row);
   });
 }
+
 async function adminUnlock(name){
   if(!confirm('Odblokowac playoff dla '+name+'?'))return;
   sync('busy','...');
