@@ -391,13 +391,7 @@ function renderChamp(editable){
 function confirmSubmit(){
   myPicks.champion=document.getElementById('champ-sel').value;
   if(!myPicks.champion){alert('Wybierz mistrza swiata!');return;}
-  if(!confirm('UWAGA!
-
-Zatwierdzasz typy PLAYOFF jako: '+me+'
-
-Po zatwierdzeniu NIE mozesz ich zmienic.
-
-Czy na pewno?'))return;
+  if(!confirm('UWAGA! Zatwierdzasz typy PLAYOFF jako: '+me+'. Po zatwierdzeniu NIE mozesz ich zmienic. Czy na pewno?'))return;
   sync('busy','Zapisywanie...');
   dbRead().then(function(fresh){
     if(!fresh.lockedPlayoff)fresh.lockedPlayoff={};
