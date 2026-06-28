@@ -63,6 +63,7 @@
   .name-btn.voted{border-color:#4caf50;color:#4caf50;}
   .vote-badge{font-size:10px;padding:2px 8px;border-radius:10px;background:var(--surface3);color:var(--muted);border:1px solid var(--border);}
   .vote-badge.done{background:rgba(76,175,80,0.1);color:#4caf50;border-color:#4caf50;}
+  .vote-badge.grp{background:rgba(248,64,24,0.1);color:var(--orange);border-color:var(--orange);}
 
   /* BUTTONS */
   .btn{background:var(--orange);color:white;border:none;border-radius:4px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;transition:background 0.2s;}
@@ -386,6 +387,8 @@ async function dbRead() {
   const j = await r.json();
   const rec = j.record;
   if(!rec.locked) rec.locked={};
+  if(!rec.lockedGroups) rec.lockedGroups=rec.locked||{};
+  if(!rec.lockedPlayoff) rec.lockedPlayoff={};
   if(!rec.logs) rec.logs=[];
   return rec;
 }
@@ -428,7 +431,11 @@ function showLogin() {
     const b=document.createElement('button');
     const locked=db.locked[name];
     b.className='name-btn'+(locked?' voted':'');
-    b.innerHTML=`<span>${name}</span><span class="vote-badge ${locked?'done':''}">${locked?'zaglosowal':'oczekuje'}</span>`;
+    const lockedG=db.lockedGroups&&db.lockedGroups[name],lockedP=db.lockedPlayoff&&db.lockedPlayoff[name];
+    const badgeClass=lockedP?'done':lockedG?'grp':'';
+    const badgeText=lockedP?'playoff OK':lockedG?'grupy OK':'oczekuje';
+    b.className='name-btn'+(lockedP?' voted':'');
+    b.innerHTML=`<span>${name}</span><span class="vote-badge ${badgeClass}">${badgeText}</span>`;
     b.onclick=()=>doLogin(name);
     btns.appendChild(b);
   });
@@ -467,15 +474,31 @@ function switchTab(tab) {
 }
 
 // PICKS TAB
+// lockedGroups = pierwszy zapis (grupy), lockedPlayoff = drugi zapis (playoff)
 function renderPicksTab() {
-  const locked=db.locked[me];
-  document.getElementById('lockedBanner').style.display=locked?'':'none';
-  document.getElementById('notVotedWarn').style.display=locked?'none':'';
-  document.getElementById('submitBtn').style.display=locked?'none':'';
-  if(locked) document.getElementById('lockedTime').textContent='Zaglosowal: '+new Date(locked).toLocaleString('pl');
-  renderGroupPicks(!!locked);
-  renderPlayoffPicks(!!locked);
-  renderChampionPick(!!locked);
+  const lockedGroups = db.lockedGroups && db.lockedGroups[me];
+  const lockedPlayoff = db.lockedPlayoff && db.lockedPlayoff[me];
+
+  // Grupy - zawsze zablokowane jesli wczesniej glosowano
+  renderGroupPicks(true); // grupy zawsze readonly
+
+  if(lockedPlayoff) {
+    // Playoff tez juz zaglosowany
+    document.getElementById('lockedBanner').style.display='';
+    document.getElementById('lockedTime').textContent='Typy playoff zatwierdzone: '+new Date(lockedPlayoff).toLocaleString('pl');
+    document.getElementById('notVotedWarn').style.display='none';
+    document.getElementById('submitBtn').style.display='none';
+    renderPlayoffPicks(true);
+    renderChampionPick(true);
+  } else {
+    // Playoff odblokowany - mozna glosowac
+    document.getElementById('lockedBanner').style.display='none';
+    document.getElementById('notVotedWarn').style.display='';
+    document.getElementById('submitBtn').style.display='';
+    document.getElementById('submitBtn').textContent='Zatwierdz playoff na stale';
+    renderPlayoffPicks(false);
+    renderChampionPick(false);
+  }
 }
 
 // GROUP PICKS
@@ -523,7 +546,7 @@ function renderPlayoffPicks(readonly=false) {
 }
 
 function pickPlayoff(rid,idx,team) {
-  if(db.locked[me])return;
+  if(db.lockedPlayoff&&db.lockedPlayoff[me])return;
   if(!myPicks.playoff)myPicks.playoff={};
   if(!myPicks.playoff[rid])myPicks.playoff[rid]=[];
   myPicks.playoff[rid][idx]=team;
@@ -540,18 +563,22 @@ function renderChampionPick(readonly=false) {
 async function confirmSubmit() {
   myPicks.champion=document.getElementById('championPick').value;
   if(!myPicks.champion){alert('Wybierz mistrza swiata!');return;}
-  if(!confirm('UWAGA!\n\nZatwierdzasz typy jako: '+me+'\n\nPo zatwierdzeniu NIE mozesz ich zmienic.\n\nCzy na pewno chcesz zatwierdzic?'))return;
+  if(!confirm('UWAGA!\n\nZatwierdzasz typy PLAYOFF jako: '+me+'\n\nPo zatwierdzeniu NIE mozesz ich zmienic.\n\nCzy na pewno chcesz zatwierdzic?'))return;
   sync('busy','Zapisywanie...');
   try {
     const fresh=await dbRead();
-    if(fresh.locked[me]){alert('Twoje typy sa juz zatwierdzone!');db=fresh;renderPicksTab();return;}
-    fresh.picks[me]=JSON.parse(JSON.stringify(myPicks));
-    fresh.locked[me]=new Date().toISOString();
+    if(!fresh.lockedPlayoff)fresh.lockedPlayoff={};
+    if(fresh.lockedPlayoff[me]){alert('Twoje typy playoff sa juz zatwierdzone!');db=fresh;renderPicksTab();return;}
+    // Zachowaj grupy z poprzedniego glosowania, dodaj playoff
+    if(!fresh.picks[me])fresh.picks[me]={};
+    fresh.picks[me].playoff=JSON.parse(JSON.stringify(myPicks.playoff||{}));
+    fresh.picks[me].champion=myPicks.champion;
+    fresh.lockedPlayoff[me]=new Date().toISOString();
     if(!fresh.logs)fresh.logs=[];
-    fresh.logs.unshift({player:me,action:'zaglosowal',time:new Date().toISOString()});
+    fresh.logs.unshift({player:me,action:'zaglosowal na playoff',time:new Date().toISOString()});
     await dbWrite(fresh); db=fresh;
     sync('ok','Zapisano');
-    alert('Typy zatwierdzone! Nie mozesz ich juz zmienic.');
+    alert('Typy playoff zatwierdzone! Nie mozesz ich juz zmienic.');
     renderPicksTab();
   } catch(e){sync('err',e.message);alert('Blad: '+e.message);}
 }
@@ -589,7 +616,7 @@ async function loadRanking() {
       <tbody>${rows.map((r,i)=>{
         const pos=i+1,pc=pos===1?'p1':pos===2?'p2':pos===3?'p3':'',medal=pos===1?'1.':pos===2?'2.':pos===3?'3.':(pos+'.');
         const hi=r.name===me?' style="background:rgba(248,64,24,0.05)"':'';
-        const st=r.locked?'<span style="color:#4caf50;font-size:11px">zaglosowal</span>':'<span style="color:var(--muted);font-size:11px">oczekuje</span>';
+        const lockedG2=db.lockedGroups&&db.lockedGroups[r.name],lockedP2=db.lockedPlayoff&&db.lockedPlayoff[r.name];const st=lockedP2?'<span style="color:#4caf50;font-size:11px">playoff OK</span>':lockedG2?'<span style="color:var(--orange);font-size:11px">grupy OK</span>':'<span style="color:var(--muted);font-size:11px">oczekuje</span>';
         return `<tr${hi}><td><span class="rank-pos ${pc}">${medal}</span></td>
           <td><strong>${r.name}</strong>${r.name===me?' <span style="color:var(--orange);font-size:10px">(Ty)</span>':''}</td>
           <td>${st}</td><td>${r.g}</td><td>${r.p}</td><td>${r.c}</td>
@@ -685,26 +712,28 @@ async function renderAdminPanel() {
 function renderAdminPlayerList() {
   const el=document.getElementById('adminPlayerList'); el.innerHTML='';
   adminPlayers.forEach((p,i)=>{
-    const locked=db.locked[p];
+    const lockedG=db.lockedGroups&&db.lockedGroups[p];
+    const lockedP=db.lockedPlayoff&&db.lockedPlayoff[p];
     const row=document.createElement('div'); row.className='player-row'; row.style.marginBottom='6px';
     row.innerHTML=`<input value="${p}" oninput="adminPlayers[${i}]=this.value" placeholder="Imie"/>
-      <span style="font-size:11px;white-space:nowrap;color:${locked?'#4caf50':'var(--muted)'};min-width:80px">${locked?'zaglosowal':'oczekuje'}</span>
-      ${locked?`<button class="btn btn-red btn-sm" onclick="adminUnlock('${p}')">Odblokuj</button>`:''}
+      <span style="font-size:10px;white-space:nowrap;color:${lockedP?'#4caf50':lockedG?'var(--orange)':'var(--muted)'};min-width:100px">${lockedP?'playoff OK':lockedG?'grupy OK':'oczekuje'}</span>
+      ${lockedP?`<button class="btn btn-red btn-sm" onclick="adminUnlock('${p}')">Odblokuj playoff</button>`:''}
       <button class="btn-icon" onclick="adminPlayers.splice(${i},1);renderAdminPlayerList()">x</button>`;
     el.appendChild(row);
   });
 }
 
 async function adminUnlock(name) {
-  if(!confirm('Odblokowac typy dla '+name+'?'))return;
+  if(!confirm('Odblokowac typy PLAYOFF dla '+name+'?'))return;
   sync('busy','Odblokowuje...');
   try{
     const fresh=await dbRead();
-    delete fresh.locked[name];
+    if(!fresh.lockedPlayoff)fresh.lockedPlayoff={};
+    delete fresh.lockedPlayoff[name];
     if(!fresh.logs)fresh.logs=[];
-    fresh.logs.unshift({player:'ADMIN',action:'odblokował typy dla: '+name,time:new Date().toISOString()});
+    fresh.logs.unshift({player:'ADMIN',action:'odblokował playoff dla: '+name,time:new Date().toISOString()});
     await dbWrite(fresh); db=fresh;
-    sync('ok','OK'); alert(name+' moze ponownie zaglosowac.');
+    sync('ok','OK'); alert(name+' moze ponownie zaglosowac na playoff.');
     renderAdminPanel();
   }catch(e){sync('err',e.message);}
 }
