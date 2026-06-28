@@ -348,19 +348,25 @@ function renderGroupPicks(){
   });
 }
 function renderPlayoffPicks(editable){
-  PLAYOFF_ROUNDS.forEach(r=>{
-    const el=document.getElementById('playoff-'+r.id);if(!el)return;
-    const pp=(myPicks.playoff&&myPicks.playoff[r.id])||[];
-    el.innerHTML=Array.from({length:r.slots},(_,i)=>{
-      const val=pp[i]||'';
+  PLAYOFF_ROUNDS.forEach(function(r){
+    var el=document.getElementById('playoff-'+r.id);if(!el)return;
+    var pp=(myPicks.playoff&&myPicks.playoff[r.id])||[];
+    var html='';
+    for(var i=0;i<r.slots;i++){
+      var val=pp[i]||'';
       if(editable){
-        return '<select class="team-select" onchange="pickPlayoff(''+r.id+'','+i+',this.value)"><option value="">-</option>'+ALL_TEAMS.map(t=>'<option value="'+t+'"'+(t===val?' selected':'')+'>'+t+'</option>').join('')+'</select>';
+        var opts='<option value="">-</option>';
+        ALL_TEAMS.forEach(function(t){opts+='<option value="'+t+'"'+(t===val?' selected':'')+'>'+t+'</option>';});
+        html+='<select class="team-select" data-rid="'+r.id+'" data-idx="'+i+'" onchange="pickPlayoff(this.dataset.rid,this.dataset.idx,this.value)">'+opts+'</select>';
+      } else {
+        html+='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:7px 10px;font-size:12px;color:'+(val&&val!=='-'?'var(--orange)':'var(--muted)')+'">'+(val&&val!=='-'?val:'-')+'</div>';
       }
-      return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:7px 10px;font-size:12px;color:'+(val&&val!=='-'?'var(--orange)':'var(--muted)')+'">'+(val&&val!=='-'?val:'-')+'</div>';
-    }).join('');
+    }
+    el.innerHTML=html;
   });
 }
-function pickPlayoff(rid,idx,team){
+
+function pickPlayoff(rid,idx,team){idx=parseInt(idx);
   if(db.lockedPlayoff&&db.lockedPlayoff[me])return;
   if(!myPicks.playoff)myPicks.playoff={};
   if(!myPicks.playoff[rid])myPicks.playoff[rid]=[];
@@ -496,16 +502,22 @@ function renderAdminGroups(){
 }
 function setAG(k,pos,val){if(!adminResults.groups)adminResults.groups={};if(!adminResults.groups[k])adminResults.groups[k]={};adminResults.groups[k][pos]=val;}
 function renderAdminPlayoff(){
-  const div=document.getElementById('adminPlayoff'),pr=adminResults.playoff||{};
-  div.innerHTML=PLAYOFF_ROUNDS.map(r=>{
-    const rr=pr[r.id]||[];
-    const slots=Array.from({length:r.slots},(_,i)=>{
-      const v=rr[i]||'';
-      return '<select style="background:var(--surface2);border:1px solid var(--border);border-radius:3px;color:var(--text);padding:5px 8px;font-size:12px;flex:1;min-width:130px" onchange="setAP(''+r.id+'','+i+',this.value)"><option value="">-</option>'+ALL_TEAMS.map(t=>'<option value="'+t+'"'+(t===v?' selected':'')+'>'+t+'</option>').join('')+'</select>';
-    });
-    return '<div style="margin-bottom:14px"><div style="font-weight:600;color:var(--slate);margin-bottom:6px;font-size:12px">'+r.label+'</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+slots.join('')+'</div></div>';
-  }).join('');
+  var div=document.getElementById('adminPlayoff'),pr=adminResults.playoff||{};
+  var html='';
+  PLAYOFF_ROUNDS.forEach(function(r){
+    var rr=pr[r.id]||[];
+    var slots='';
+    for(var i=0;i<r.slots;i++){
+      var v=rr[i]||'';
+      var opts='<option value="">-</option>';
+      ALL_TEAMS.forEach(function(t){opts+='<option value="'+t+'"'+(t===v?' selected':'')+'>'+t+'</option>';});
+      slots+='<select style="background:var(--surface2);border:1px solid var(--border);border-radius:3px;color:var(--text);padding:5px 8px;font-size:12px;flex:1;min-width:130px" data-rid="'+r.id+'" data-idx="'+i+'" onchange="setAP(this.dataset.rid,parseInt(this.dataset.idx),this.value)">'+opts+'</select>';
+    }
+    html+='<div style="margin-bottom:14px"><div style="font-weight:600;color:var(--slate);margin-bottom:6px;font-size:12px">'+r.label+'</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+slots+'</div></div>';
+  });
+  div.innerHTML=html;
 }
+
 function setAP(rid,idx,val){if(!adminResults.playoff)adminResults.playoff={};if(!adminResults.playoff[rid])adminResults.playoff[rid]=[];adminResults.playoff[rid][idx]=val;}
 async function adminSaveResults(){
   adminResults.champion=document.getElementById('adminChampion').value;
