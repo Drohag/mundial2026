@@ -120,6 +120,7 @@ header h1 span{color:var(--or);}
   <div class="tabs">
     <div class="tab active" id="tab-picks" onclick="switchTab('picks')">Moje typy</div>
     <div class="tab" id="tab-ranking" onclick="switchTab('ranking')">Ranking</div>
+    <div class="tab" id="tab-terminarz" onclick="switchTab('terminarz')">Terminarz</div>
     <div class="tab" id="tab-zasady" onclick="switchTab('zasady')">Zasady</div>
     <div class="tab" id="tab-admin" style="display:none" onclick="switchTab('admin')">Admin</div>
   </div>
@@ -164,6 +165,20 @@ header h1 span{color:var(--or);}
         <button class="btn btnd" onclick="loadRanking()">Odswiez</button>
         <button class="btn btnd" onclick="exportPDF()">Eksport PDF</button>
       </div>
+    </div>
+  </div>
+  <div class="panel" id="panel-terminarz">
+    <div class="con">
+      <div class="stitle">Terminarz - wszystkie mecze</div>
+      <div id="term-loading" style="text-align:center;padding:40px"><div class="spin"></div></div>
+      <div id="term-content"></div>
+    </div>
+  </div>
+  <div class="panel" id="panel-terminarz">
+    <div class="con">
+      <div class="stitle">Terminarz - wszystkie mecze</div>
+      <div id="term-loading" style="text-align:center;padding:40px"><div class="spin"></div></div>
+      <div id="term-content"></div>
     </div>
   </div>
   <div class="panel" id="panel-zasady">
@@ -298,7 +313,7 @@ function showApp(){
   switchTab('picks');
 }
 function switchTab(tab){
-  ['picks','ranking','zasady','admin'].forEach(function(t){
+  ['picks','ranking','terminarz','zasady','admin'].forEach(function(t){
     document.getElementById('tab-'+t).classList.remove('active');
     document.getElementById('panel-'+t).classList.remove('active');
   });
@@ -307,6 +322,7 @@ function switchTab(tab){
   if(tab==='ranking')loadRanking();
   if(tab==='admin')renderAdmin();
   if(tab==='picks')renderPicksTab();
+  if(tab==='terminarz')loadTerminarz();
 }
 function renderPicksTab(){
   var lP=db.lockedPlayoff&&db.lockedPlayoff[me];
@@ -644,6 +660,155 @@ function fetchAndSave(){
     });
   }).catch(function(e){sync('err',e.message);});
 }
+// TERMINARZ
+var termData=null;
+
+function loadTerminarz(){
+  if(termData){renderTerminarz(termData);return;}
+  document.getElementById('term-loading').style.display='';
+  document.getElementById('term-content').innerHTML='';
+  fetch('https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json')
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(function(data){
+      termData=data;
+      document.getElementById('term-loading').style.display='none';
+      renderTerminarz(data);
+    })
+    .catch(function(e){
+      document.getElementById('term-loading').innerHTML='<p style="color:var(--rd)">Blad pobierania terminarza: '+e.message+'</p>';
+    });
+}
+
+function fmtDate(ds){
+  if(!ds)return '';
+  var d=new Date(ds);
+  return d.toLocaleDateString('pl',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+d.toLocaleTimeString('pl',{hour:'2-digit',minute:'2-digit'});
+}
+
+function renderTerminarz(data){
+  var el=document.getElementById('term-content');
+  el.innerHTML='';
+  if(!data||!data.matches){el.innerHTML='<p style="color:var(--mu)">Brak danych.</p>';return;}
+
+  // Group matches by round/group
+  var sections={};
+  data.matches.forEach(function(m){
+    var key=m.group||m.round||'Inne';
+    if(!sections[key])sections[key]=[];
+    sections[key].push(m);
+  });
+
+  Object.keys(sections).forEach(function(key){
+    var matches=sections[key];
+    var sec=document.createElement('div');
+    sec.style.marginBottom='20px';
+
+    var hdr=document.createElement('div');
+    hdr.className='stitle';
+    hdr.style.marginTop='0';
+    hdr.textContent=key;
+    sec.appendChild(hdr);
+
+    var grid=document.createElement('div');
+    grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;';
+
+    matches.forEach(function(m){
+      var card=document.createElement('div');
+      card.style.cssText='background:var(--sf);border:1px solid var(--br);border-radius:4px;padding:12px 14px;';
+
+      var hasScore=m.score&&m.score.ft;
+      var score=hasScore?(m.score.ft[0]+' - '+m.score.ft[1]):'vs';
+      var scoreColor=hasScore?'var(--or)':'var(--mu)';
+
+      var dateStr=m.date?(fmtDate(m.date)):'';
+
+      card.innerHTML=
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">'+
+          '<span style="font-weight:600;font-size:13px;flex:1;text-align:right">'+m.team1+'</span>'+
+          '<span style="font-size:15px;font-weight:700;color:'+scoreColor+';min-width:50px;text-align:center">'+score+'</span>'+
+          '<span style="font-weight:600;font-size:13px;flex:1;text-align:left">'+m.team2+'</span>'+
+        '</div>'+
+        (dateStr?'<div style="font-size:10px;color:var(--mu);text-align:center;margin-top:6px">'+dateStr+'</div>':'');
+
+      grid.appendChild(card);
+    });
+    sec.appendChild(grid);
+    el.appendChild(sec);
+  });
+}
+
+// TERMINARZ
+var termData=null;
+function loadTerminarz(){
+  if(termData){renderTerminarz(termData);return;}
+  document.getElementById('term-loading').style.display='';
+  document.getElementById('term-content').innerHTML='';
+  fetch('https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json')
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(function(data){termData=data;document.getElementById('term-loading').style.display='none';renderTerminarz(data);})
+    .catch(function(e){document.getElementById('term-loading').innerHTML='<p style="color:var(--rd)">Blad: '+e.message+'</p>';});
+}
+function fmtDate(ds){
+  if(!ds)return '';
+  try{var d=new Date(ds);return d.toLocaleDateString('pl',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pl',{hour:'2-digit',minute:'2-digit'});}catch(e){return ds;}
+}
+function renderTerminarz(data){
+  var el=document.getElementById('term-content');
+  el.innerHTML='';
+  if(!data||!data.matches){el.innerHTML='<p style="color:var(--mu)">Brak danych.</p>';return;}
+
+  // Mapowanie rund na polskie nazwy
+  var roundPL={
+    'Round of 32':'1/16 Finalu','Round of 16':'1/8 Finalu',
+    'Quarter-finals':'Cwiercfinaly','Quarterfinals':'Cwiercfinaly',
+    'Semi-finals':'Polfinaly','Semifinals':'Polfinaly',
+    'Final':'Final','Third place':'Mecz o 3. miejsce'
+  };
+
+  // Tylko playoff (brak grup)
+  var sections={};
+  var order=[];
+  data.matches.forEach(function(m){
+    if(m.group)return; // pomijamy mecze grupowe
+    var raw=m.round||'Inne';
+    var key=roundPL[raw]||raw;
+    if(!sections[key]){sections[key]=[];order.push(key);}
+    sections[key].push(m);
+  });
+
+  if(!order.length){
+    el.innerHTML='<p style="color:var(--mu);padding:20px">Brak danych o playoff - mecze jeszcze nie zaplanowane w API.</p>';
+    return;
+  }
+
+  order.forEach(function(key){
+    var matches=sections[key];
+    var sec=document.createElement('div');sec.style.marginBottom='20px';
+    var hdr=document.createElement('div');hdr.className='stitle';hdr.style.marginTop='0';hdr.textContent=key;sec.appendChild(hdr);
+    var grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;';
+    matches.forEach(function(m){
+      var card=document.createElement('div');
+      card.style.cssText='background:var(--sf);border:1px solid var(--br);border-radius:4px;padding:12px 14px;';
+      var hasScore=m.score&&m.score.ft;
+      var score=hasScore?(m.score.ft[0]+' - '+m.score.ft[1]):'vs';
+      var scoreColor=hasScore?'var(--or)':'var(--mu)';
+      var dateStr=m.date?fmtDate(m.date):'';
+      // Nazwy druzyn po polsku przez FD_MAP
+      var name1=FD_MAP[m.team1]||m.team1;
+      var name2=FD_MAP[m.team2]||m.team2;
+      var inner=document.createElement('div');
+      inner.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;';
+      var t1=document.createElement('span');t1.style.cssText='font-weight:600;font-size:13px;flex:1;text-align:right';t1.textContent=name1;
+      var sc=document.createElement('span');sc.style.cssText='font-size:15px;font-weight:700;color:'+scoreColor+';min-width:50px;text-align:center';sc.textContent=score;
+      var t2=document.createElement('span');t2.style.cssText='font-weight:600;font-size:13px;flex:1;text-align:left';t2.textContent=name2;
+      inner.appendChild(t1);inner.appendChild(sc);inner.appendChild(t2);card.appendChild(inner);
+      if(dateStr){var dt=document.createElement('div');dt.style.cssText='font-size:10px;color:var(--mu);text-align:center;margin-top:6px';dt.textContent=dateStr;card.appendChild(dt);}
+      grid.appendChild(card);
+    });
+    sec.appendChild(grid);el.appendChild(sec);
+  });
+}
+
 init();
 setInterval(fetchAndSave,5*60*1000);
 </script>
